@@ -5,7 +5,7 @@
  * @license For open source use: GPLv3
  *          For commercial use: JSColor Commercial License
  * @author  Jan Odvarko - East Desire
- * @version 2.5.2
+ * @version 2.4.3
  *
  * See usage examples at http://jscolor.com/examples/
  */
@@ -53,11 +53,7 @@ var jsc = {
 
 	register : function () {
 		if (typeof window !== 'undefined' && window.document) {
-			if (window.document.readyState !== 'loading') {
-				jsc.pub.init();
-			} else {
-				window.document.addEventListener('DOMContentLoaded', jsc.pub.init, false);
-			}
+			window.document.addEventListener('DOMContentLoaded', jsc.pub.init, false);
 		}
 	},
 
@@ -383,6 +379,24 @@ var jsc = {
 	},
 
 
+	captureTarget : function (target) {
+		// IE
+		if (target.setCapture) {
+			jsc._capturedTarget = target;
+			jsc._capturedTarget.setCapture();
+		}
+	},
+
+
+	releaseTarget : function () {
+		// IE
+		if (jsc._capturedTarget) {
+			jsc._capturedTarget.releaseCapture();
+			jsc._capturedTarget = null;
+		}
+	},
+
+
 	triggerEvent : function (el, eventName, bubbles, cancelable) {
 		if (!el) {
 			return;
@@ -562,50 +576,11 @@ var jsc = {
 	},
 
 
-	appendCss : function (css) {
-		var head = document.querySelector('head');
-		var style = document.createElement('style');
-		style.innerText = css;
-		head.appendChild(style);
-	},
-
-
-	appendDefaultCss : function (css) {
-		jsc.appendCss(
-			[
-				'.jscolor-wrap, .jscolor-wrap div, .jscolor-wrap canvas { ' +
-				'position:static; display:block; visibility:visible; overflow:visible; margin:0; padding:0; ' +
-				'border:none; border-radius:0; outline:none; z-index:auto; float:none; ' +
-				'width:auto; height:auto; left:auto; right:auto; top:auto; bottom:auto; min-width:0; min-height:0; max-width:none; max-height:none; ' +
-				'background:none; clip:auto; opacity:1; transform:none; box-shadow:none; box-sizing:content-box; ' +
-				'}',
-				'.jscolor-wrap { clear:both; }',
-				'.jscolor-wrap .jscolor-picker { position:relative; }',
-				'.jscolor-wrap .jscolor-shadow { position:absolute; left:0; top:0; width:100%; height:100%; }',
-				'.jscolor-wrap .jscolor-border { position:relative; }',
-				'.jscolor-wrap .jscolor-palette { position:absolute; }',
-				'.jscolor-wrap .jscolor-palette-sw { position:absolute; display:block; cursor:pointer; }',
-				'.jscolor-wrap .jscolor-btn { position:absolute; overflow:hidden; white-space:nowrap; font:13px sans-serif; text-align:center; cursor:pointer; }',
-			].join('\n')
-		);
-	},
-
-
 	hexColor : function (r, g, b) {
 		return '#' + (
-			('0' + Math.round(r).toString(16)).slice(-2) +
-			('0' + Math.round(g).toString(16)).slice(-2) +
-			('0' + Math.round(b).toString(16)).slice(-2)
-		).toUpperCase();
-	},
-
-
-	hexaColor : function (r, g, b, a) {
-		return '#' + (
-			('0' + Math.round(r).toString(16)).slice(-2) +
-			('0' + Math.round(g).toString(16)).slice(-2) +
-			('0' + Math.round(b).toString(16)).slice(-2) +
-			('0' + Math.round(a * 255).toString(16)).slice(-2)
+			('0' + Math.round(r).toString(16)).substr(-2) +
+			('0' + Math.round(g).toString(16)).substr(-2) +
+			('0' + Math.round(b).toString(16)).substr(-2)
 		).toUpperCase();
 	},
 
@@ -800,62 +775,45 @@ var jsc = {
 	parseColorString : function (str) {
 		var ret = {
 			rgba: null,
-			format: null // 'hex' | 'hexa' | 'rgb' | 'rgba'
+			format: null // 'hex' | 'rgb' | 'rgba'
 		};
 
 		var m;
-
-		if (m = str.match(/^\W*([0-9A-F]{3,8})\W*$/i)) {
+		if (m = str.match(/^\W*([0-9A-F]{3}([0-9A-F]{3})?)\W*$/i)) {
 			// HEX notation
 
-			if (m[1].length === 8) {
-				// 8-char notation (= with alpha)
-				ret.format = 'hexa';
-				ret.rgba = [
-					parseInt(m[1].slice(0,2),16),
-					parseInt(m[1].slice(2,4),16),
-					parseInt(m[1].slice(4,6),16),
-					parseInt(m[1].slice(6,8),16) / 255
-				];
+			ret.format = 'hex';
 
-			} else if (m[1].length === 6) {
+			if (m[1].length === 6) {
 				// 6-char notation
-				ret.format = 'hex';
 				ret.rgba = [
-					parseInt(m[1].slice(0,2),16),
-					parseInt(m[1].slice(2,4),16),
-					parseInt(m[1].slice(4,6),16),
+					parseInt(m[1].substr(0,2),16),
+					parseInt(m[1].substr(2,2),16),
+					parseInt(m[1].substr(4,2),16),
 					null
 				];
-
-			} else if (m[1].length === 3) {
+			} else {
 				// 3-char notation
-				ret.format = 'hex';
 				ret.rgba = [
 					parseInt(m[1].charAt(0) + m[1].charAt(0),16),
 					parseInt(m[1].charAt(1) + m[1].charAt(1),16),
 					parseInt(m[1].charAt(2) + m[1].charAt(2),16),
 					null
 				];
-
-			} else {
-				return false;
 			}
-
 			return ret;
-		}
 
-		if (m = str.match(/^\W*rgba?\(([^)]*)\)\W*$/i)) {
+		} else if (m = str.match(/^\W*rgba?\(([^)]*)\)\W*$/i)) {
 			// rgb(...) or rgba(...) notation
 
-			var par = m[1].split(',');
+			var params = m[1].split(',');
 			var re = /^\s*(\d+|\d*\.\d+|\d+\.\d*)\s*$/;
 			var mR, mG, mB, mA;
 			if (
-				par.length >= 3 &&
-				(mR = par[0].match(re)) &&
-				(mG = par[1].match(re)) &&
-				(mB = par[2].match(re))
+				params.length >= 3 &&
+				(mR = params[0].match(re)) &&
+				(mG = params[1].match(re)) &&
+				(mB = params[2].match(re))
 			) {
 				ret.format = 'rgb';
 				ret.rgba = [
@@ -866,8 +824,8 @@ var jsc = {
 				];
 
 				if (
-					par.length >= 4 &&
-					(mA = par[3].match(re))
+					params.length >= 4 &&
+					(mA = params[3].match(re))
 				) {
 					ret.format = 'rgba';
 					ret.rgba[3] = parseFloat(mA[1]) || 0;
@@ -885,7 +843,7 @@ var jsc = {
 
 		if (typeof mixed === 'string') { // input is a string of space separated color values
 			// rgb() and rgba() may contain spaces too, so let's find all color values by regex
-			mixed.replace(/#[0-9A-F]{3}\b|#[0-9A-F]{6}([0-9A-F]{2})?\b|rgba?\(([^)]*)\)/ig, function (val) {
+			mixed.replace(/#[0-9A-F]{3}([0-9A-F]{3})?|rgba?\(([^)]*)\)/ig, function (val) {
 				vals.push(val);
 			});
 		} else if (Array.isArray(mixed)) { // input is an array of color values
@@ -913,16 +871,6 @@ var jsc = {
 			if (a !== null && a < 1.0) {
 				return true;
 			}
-		}
-		return false;
-	},
-
-
-	isAlphaFormat : function (format) {
-		switch (format.toLowerCase()) {
-		case 'hexa':
-		case 'rgba':
-			return true;
 		}
 		return false;
 	},
@@ -1033,17 +981,8 @@ var jsc = {
 
 	redrawPosition : function () {
 
-		if (!jsc.picker || !jsc.picker.owner) {
-			return; // picker is not shown
-		}
-
-		var thisObj = jsc.picker.owner;
-
-		if (thisObj.container !== window.document.body) {
-
-			jsc._drawPosition(thisObj, 0, 0, 'relative', false);
-
-		} else {
+		if (jsc.picker && jsc.picker.owner) {
+			var thisObj = jsc.picker.owner;
 
 			var tp, vp;
 
@@ -1095,9 +1034,7 @@ var jsc = {
 				(pp[1] + ps[1] < tp[1] + ts[1]);
 
 			jsc._drawPosition(thisObj, x, y, positionValue, contractShadow);
-
 		}
-
 	},
 
 
@@ -1105,14 +1042,8 @@ var jsc = {
 		var vShadow = contractShadow ? 0 : thisObj.shadowBlur; // px
 
 		jsc.picker.wrap.style.position = positionValue;
-
-		if ( // To avoid unnecessary repositioning during scroll
-			Math.round(parseFloat(jsc.picker.wrap.style.left)) !== Math.round(x) ||
-			Math.round(parseFloat(jsc.picker.wrap.style.top)) !== Math.round(y)
-		) {
-			jsc.picker.wrap.style.left = x + 'px';
-			jsc.picker.wrap.style.top = y + 'px';
-		}
+		jsc.picker.wrap.style.left = x + 'px';
+		jsc.picker.wrap.style.top = y + 'px';
 
 		jsc.setBoxShadow(
 			jsc.picker.boxS,
@@ -1262,6 +1193,7 @@ var jsc = {
 
 
 	_pointerOrigin : null,
+	_capturedTarget : null,
 
 
 	onDocumentKeyUp : function (e) {
@@ -1274,11 +1206,6 @@ var jsc = {
 
 
 	onWindowResize : function (e) {
-		jsc.redrawPosition();
-	},
-
-
-	onWindowScroll : function (e) {
 		jsc.redrawPosition();
 	},
 
@@ -1326,6 +1253,7 @@ var jsc = {
 		var thisObj = jsc.getData(target, 'instance');
 
 		jsc.preventDefault(e);
+		jsc.captureTarget(target);
 
 		var registerDragEvents = function (doc, offset) {
 			jsc.attachGroupEvent('drag', doc, jsc._pointerMoveEvent[pointerType],
@@ -1395,6 +1323,7 @@ var jsc = {
 		return function (e) {
 			var thisObj = jsc.getData(target, 'instance');
 			jsc.detachGroupEvents('drag');
+			jsc.releaseTarget();
 
 			// Always trigger changes AFTER detaching outstanding mouse handlers,
 			// in case some color change that occured in user-defined onChange/onInput handler
@@ -1413,7 +1342,7 @@ var jsc = {
 		// when format is flexible, use the original format of this color sample
 		if (thisObj.format.toLowerCase() === 'any') {
 			thisObj._setFormat(color.format); // adapt format
-			if (!jsc.isAlphaFormat(thisObj.getFormat())) {
+			if (thisObj.getFormat() !== 'rgba') {
 				color.rgba[3] = 1.0; // when switching to a format that doesn't support alpha, set full opacity
 			}
 		}
@@ -1470,9 +1399,8 @@ var jsc = {
 
 		if (yVal < 1.0) {
 			// if format is flexible and the current format doesn't support alpha, switch to a suitable one
-			var fmt = thisObj.getFormat();
-			if (thisObj.format.toLowerCase() === 'any' && !jsc.isAlphaFormat(fmt)) {
-				thisObj._setFormat(fmt === 'hex' ? 'hexa' : 'rgba');
+			if (thisObj.format.toLowerCase() === 'any' && thisObj.getFormat() !== 'rgba') {
+				thisObj._setFormat('rgba');
 			}
 		}
 
@@ -1645,7 +1573,7 @@ var jsc = {
 
 
 	enumOpts : {
-		format: ['auto', 'any', 'hex', 'hexa', 'rgb', 'rgba'],
+		format: ['auto', 'any', 'hex', 'rgb', 'rgba'],
 		previewPosition: ['left', 'right'],
 		mode: ['hsv', 'hvs', 'hs', 'hv'],
 		position: ['left', 'right', 'top', 'bottom'],
@@ -1696,10 +1624,9 @@ var jsc = {
 
 		// General options
 		//
-		this.format = 'auto'; // 'auto' | 'any' | 'hex' | 'hexa' | 'rgb' | 'rgba' - Format of the input/output value
+		this.format = 'auto'; // 'auto' | 'any' | 'hex' | 'rgb' | 'rgba' - Format of the input/output value
 		this.value = undefined; // INITIAL color value in any supported format. To change it later, use method fromString(), fromHSVA(), fromRGBA() or channel()
 		this.alpha = undefined; // INITIAL alpha value. To change it later, call method channel('A', <value>)
-		this.random = false; // whether to randomize the initial color. Either true | false, or an array of ranges: [minV, maxV, minS, maxS, minH, maxH, minA, maxA]
 		this.onChange = undefined; // called when color changes. Value can be either a function or a string with JS code.
 		this.onInput = undefined; // called repeatedly as the color is being changed, e.g. while dragging a slider. Value can be either a function or a string with JS code.
 		this.valueElement = undefined; // element that will be used to display and input the color value
@@ -1730,7 +1657,7 @@ var jsc = {
 		this.paletteSpacing = 4; // distance (px) between color samples in the palette
 		this.hideOnPaletteClick = false; // when set to true, clicking the palette will also hide the color picker
 		this.sliderSize = 16; // px
-		this.crossSize = 8; // px
+		this.crossSize = 6; // px
 		this.closeButton = false; // whether to display the Close button
 		this.closeText = 'Close';
 		this.buttonColor = 'rgba(0,0,0,1)'; // CSS color
@@ -2015,7 +1942,7 @@ var jsc = {
 			}
 			if (this.format.toLowerCase() === 'any') {
 				this._setFormat(color.format); // adapt format
-				if (!jsc.isAlphaFormat(this.getFormat())) {
+				if (this.getFormat() !== 'rgba') {
 					color.rgba[3] = 1.0; // when switching to a format that doesn't support alpha, set full opacity
 				}
 			}
@@ -2030,32 +1957,12 @@ var jsc = {
 		};
 
 
-		this.randomize = function (minV, maxV, minS, maxS, minH, maxH, minA, maxA) {
-			if (minV === undefined) { minV = 0; }
-			if (maxV === undefined) { maxV = 100; }
-			if (minS === undefined) { minS = 0; }
-			if (maxS === undefined) { maxS = 100; }
-			if (minH === undefined) { minH = 0; }
-			if (maxH === undefined) { maxH = 359; }
-			if (minA === undefined) { minA = 1; }
-			if (maxA === undefined) { maxA = 1; }
-
-			this.fromHSVA(
-				minH + Math.floor(Math.random() * (maxH - minH + 1)),
-				minS + Math.floor(Math.random() * (maxS - minS + 1)),
-				minV + Math.floor(Math.random() * (maxV - minV + 1)),
-				((100 * minA) + Math.floor(Math.random() * (100 * (maxA - minA) + 1))) / 100
-			);
-		};
-
-
 		this.toString = function (format) {
 			if (format === undefined) {
 				format = this.getFormat(); // format not specified -> use the current format
 			}
 			switch (format.toLowerCase()) {
 				case 'hex': return this.toHEXString(); break;
-				case 'hexa': return this.toHEXAString(); break;
 				case 'rgb': return this.toRGBString(); break;
 				case 'rgba': return this.toRGBAString(); break;
 			}
@@ -2068,16 +1975,6 @@ var jsc = {
 				this.channels.r,
 				this.channels.g,
 				this.channels.b
-			);
-		};
-
-
-		this.toHEXAString = function () {
-			return jsc.hexaColor(
-				this.channels.r,
-				this.channels.g,
-				this.channels.b,
-				this.channels.a
 			);
 		};
 
@@ -2163,7 +2060,7 @@ var jsc = {
 			if (this.alphaChannel === 'auto') {
 				return (
 					this.format.toLowerCase() === 'any' || // format can change on the fly (e.g. from hex to rgba), so let's consider the alpha channel enabled
-					jsc.isAlphaFormat(this.getFormat()) || // the current format supports alpha channel
+					this.getFormat() === 'rgba' || // the current format supports alpha channel
 					this.alpha !== undefined || // initial alpha value is set, so we're working with alpha channel
 					this.alphaElement !== undefined // the alpha value is redirected, so we're working with alpha channel
 				);
@@ -2191,13 +2088,12 @@ var jsc = {
 
 		this.exposeColor = function (flags) {
 			var colorStr = this.toString();
-			var fmt = this.getFormat();
 
 			// reflect current color in data- attribute
 			jsc.setDataAttr(this.targetElement, 'current-color', colorStr);
 
 			if (!(flags & jsc.flags.leaveValue) && this.valueElement) {
-				if (fmt === 'hex' || fmt === 'hexa') {
+				if (this.getFormat() === 'hex') {
 					if (!this.uppercase) { colorStr = colorStr.toLowerCase(); }
 					if (!this.hash) { colorStr = colorStr.replace(/^#/, ''); }
 				}
@@ -2517,7 +2413,7 @@ var jsc = {
 					asldPtrOB : jsc.createEl('div'), // slider pointer outer border
 					pal : jsc.createEl('div'), // palette
 					btn : jsc.createEl('div'),
-					btnT : jsc.createEl('div'), // text
+					btnT : jsc.createEl('span'), // text
 				};
 
 				jsc.picker.pad.appendChild(jsc.picker.padCanvas.elm);
@@ -2574,7 +2470,8 @@ var jsc = {
 			var padCursor = 'crosshair';
 
 			// wrap
-			p.wrap.className = 'jscolor-wrap';
+			p.wrap.className = 'jscolor-picker-wrap';
+			p.wrap.style.clear = 'both';
 			p.wrap.style.width = pickerDims.borderW + 'px';
 			p.wrap.style.height = pickerDims.borderH + 'px';
 			p.wrap.style.zIndex = THIS.zIndex;
@@ -2583,13 +2480,20 @@ var jsc = {
 			p.box.className = 'jscolor-picker';
 			p.box.style.width = pickerDims.paddedW + 'px';
 			p.box.style.height = pickerDims.paddedH + 'px';
+			p.box.style.position = 'relative';
 
 			// picker shadow
-			p.boxS.className = 'jscolor-shadow';
+			p.boxS.className = 'jscolor-picker-shadow';
+			p.boxS.style.position = 'absolute';
+			p.boxS.style.left = '0';
+			p.boxS.style.top = '0';
+			p.boxS.style.width = '100%';
+			p.boxS.style.height = '100%';
 			jsc.setBorderRadius(p.boxS, borderRadius + 'px');
 
 			// picker border
-			p.boxB.className = 'jscolor-border';
+			p.boxB.className = 'jscolor-picker-border';
+			p.boxB.style.position = 'relative';
 			p.boxB.style.border = THIS.borderWidth + 'px solid';
 			p.boxB.style.borderColor = THIS.borderColor;
 			p.boxB.style.background = THIS.backgroundColor;
@@ -2793,6 +2697,7 @@ var jsc = {
 			// palette
 			p.pal.className = 'jscolor-palette';
 			p.pal.style.display = pickerDims.palette.rows ? 'block' : 'none';
+			p.pal.style.position = 'absolute';
 			p.pal.style.left = THIS.padding + 'px';
 			p.pal.style.top = (2 * THIS.controlBorderWidth + 2 * THIS.padding + THIS.height) + 'px';
 
@@ -2814,15 +2719,17 @@ var jsc = {
 					sc.style.backgroundColor = sampleCssColor;
 
 					var sw = jsc.createEl('div'); // color sample's wrap
-					sw.className = 'jscolor-palette-sw';
-					sw.style.left =
-						(
+					sw.className = 'jscolor-palette-sample';
+					sw.style.display = 'block';
+					sw.style.position = 'absolute';
+					sw.style.left = (
 							pickerDims.palette.cols <= 1 ? 0 :
 							Math.round(10 * (c * ((pickerDims.contentW - pickerDims.palette.cellW) / (pickerDims.palette.cols - 1)))) / 10
 						) + 'px';
 					sw.style.top = (r * (pickerDims.palette.cellH + THIS.paletteSpacing)) + 'px';
 					sw.style.border = THIS.controlBorderWidth + 'px solid';
 					sw.style.borderColor = THIS.controlBorderColor;
+					sw.style.cursor = 'pointer';
 					if (sampleColor.rgba[3] !== null && sampleColor.rgba[3] < 1.0) { // only create chessboard background if the sample has transparency
 						sw.style.backgroundImage = 'url(\'' + chessboard.canvas.toDataURL() + '\')';
 						sw.style.backgroundRepeat = 'repeat';
@@ -2830,9 +2737,9 @@ var jsc = {
 					}
 					jsc.setData(sw, {
 						instance: THIS,
-						control: 'palette-sw',
+						control: 'palette-sample',
 						color: sampleColor,
-					});
+					})
 					sw.addEventListener('click', jsc.onPaletteSampleClick, false);
 					sw.appendChild(sc);
 					p.pal.appendChild(sw);
@@ -2847,22 +2754,28 @@ var jsc = {
 				p.btn.style.borderColor = outsetColor;
 			}
 			var btnPadding = 15; // px
-			p.btn.className = 'jscolor-btn jscolor-btn-close';
+			p.btn.className = 'jscolor-btn-close';
 			p.btn.style.display = THIS.closeButton ? 'block' : 'none';
+			p.btn.style.position = 'absolute';
 			p.btn.style.left = THIS.padding + 'px';
 			p.btn.style.bottom = THIS.padding + 'px';
 			p.btn.style.padding = '0 ' + btnPadding + 'px';
 			p.btn.style.maxWidth = (pickerDims.contentW - 2 * THIS.controlBorderWidth - 2 * btnPadding) + 'px';
+			p.btn.style.overflow = 'hidden';
 			p.btn.style.height = THIS.buttonHeight + 'px';
+			p.btn.style.whiteSpace = 'nowrap';
 			p.btn.style.border = THIS.controlBorderWidth + 'px solid';
 			setBtnBorder();
 			p.btn.style.color = THIS.buttonColor;
+			p.btn.style.font = '12px sans-serif';
+			p.btn.style.textAlign = 'center';
+			p.btn.style.cursor = 'pointer';
 			p.btn.onmousedown = function () {
 				THIS.hide();
 			};
-			p.btnT.style.display = 'inline';
 			p.btnT.style.lineHeight = THIS.buttonHeight + 'px';
-			p.btnT.innerText = THIS.closeText;
+			p.btnT.innerHTML = '';
+			p.btnT.appendChild(window.document.createTextNode(THIS.closeText));
 
 			// reposition the pointers
 			redrawPad();
@@ -2880,7 +2793,11 @@ var jsc = {
 
 			// The redrawPosition() method needs picker.owner to be set, that's why we call it here,
 			// after setting the owner
-			jsc.redrawPosition();
+			if (THIS.container === window.document.body) {
+				jsc.redrawPosition();
+			} else {
+				jsc._drawPosition(THIS, 0, 0, 'relative', false);
+			}
 
 			if (p.wrap.parentNode !== THIS.container) {
 				THIS.container.appendChild(p.wrap);
@@ -3304,15 +3221,10 @@ var jsc = {
 		// let's also parse and expose the initial alpha value, if any
 		//
 		// Note: If the initial color value contains alpha value in it (e.g. in rgba format),
-		// this will overwrite it. So we should only process alpha input if there was initial
+		// this will overwrite it. So we should only process alpha input if there was any initial
 		// alpha explicitly set, otherwise we could needlessly lose initial value's alpha
 		if (initAlpha !== undefined) {
 			this.processAlphaInput(initAlpha);
-		}
-
-		if (this.random) {
-			// randomize the initial color value
-			this.randomize.apply(this, Array.isArray(this.random) ? this.random : []);
 		}
 
 	}
@@ -3389,10 +3301,6 @@ jsc.pub.init = function () {
 	window.document.addEventListener('mousedown', jsc.onDocumentMouseDown, false);
 	window.document.addEventListener('keyup', jsc.onDocumentKeyUp, false);
 	window.addEventListener('resize', jsc.onWindowResize, false);
-	window.addEventListener('scroll', jsc.onWindowScroll, false);
-
-	// append default CSS to HEAD
-	jsc.appendDefaultCss();
 
 	// install jscolor on current DOM
 	jsc.pub.install();
